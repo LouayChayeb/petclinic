@@ -1,0 +1,55 @@
+pipeline {
+    agent any
+
+    environment {
+        SONAR_TOKEN = credentials('SONAR_TOKEN')
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                git branch: 'main', url: 'https://github.com/karoumbr/SpringPetClinic.git'
+            }
+        }
+
+        stage('Build & Unit Tests') {
+            steps {
+                sh 'mvn clean package'
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                sh 'mvn sonar:sonar -Dsonar.projectKey=SpringPetClinic -Dsonar.host.url=http://localhost:9000 -Dsonar.login=$SONAR_TOKEN'
+            }
+        }
+
+        stage('UI Tests') {
+            steps {
+                sh 'mvn test -Dtest=*Selenium*'
+            }
+        }
+
+        stage('Docker Build & Push') {
+            steps {
+                script {
+                    docker.build('louay1732001/springpetclinic:latest').push()
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh 'kubectl apply -f k8s/deployment.yaml'
+            }
+        }
+    }
+
+    post {
+        failure {
+            mail to: 'louaychayeb00@gmail.com',
+                 subject: "Pipeline failed: ${currentBuild.fullDisplayName}",
+                 body: "Check Jenkins console output at ${env.BUILD_URL}"
+        }
+    }
+}
