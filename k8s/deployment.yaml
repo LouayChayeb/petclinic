@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: springpetclinic
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: springpetclinic
@@ -17,3 +17,11 @@ spec:
           image: louay1732001/petclinic:latest
           ports:
             - containerPort: 8080
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+
