@@ -33,16 +33,10 @@ pipeline {
         }
 
         stage('Push to Docker Hub') {
-            steps {
-                timeout(time: 60, unit: 'MINUTES') {
-                    sh """
-                        echo \$DOCKER_HUB_CREDENTIALS_PSW | docker login -u \$DOCKER_HUB_CREDENTIALS_USR --password-stdin
-                        docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
-                        docker push ${DOCKER_IMAGE}:latest
-                        docker logout
-                    """
-                }
-            }
+            steps { sh ''' echo "Skipping Docker build - using existing image"
+            # docker logout # echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+            # docker build -t $DOCKER_USERNAME/petclinic:latest .
+            # docker push $DOCKER_USERNAME/petclinic:latest ''' }
         }
 
         stage('Deploy to Kubernetes') {
