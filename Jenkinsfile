@@ -80,6 +80,18 @@ pipeline {
                 echo "Application URL: http://$MINIKUBE_IP:30080"
                 echo "================================================"
             '''
+             emailext (
+                            subject: "Jenkins Build success: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                            body: """
+                            <h2>Build SUCCESS</h2>
+                            <p><strong>Job:</strong> ${env.JOB_NAME}</p>
+                            <p><strong>Build Number:</strong> ${env.BUILD_NUMBER}</p>
+                            <p><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
+                            <p><strong>Console Output:</strong> <a href="${env.BUILD_URL}console">${env.BUILD_URL}console</a></p>
+                            """,
+                            to: 'louaychayeb00@gmail.com',
+                            mimeType: 'text/html'
+                        )
         }
         failure {
             echo "❌ Deployment failed!"
