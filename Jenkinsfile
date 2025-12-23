@@ -4,7 +4,10 @@ pipeline {
     environment {
         DOCKER_HUB_CREDENTIALS = credentials('dockerhub-credentials')
         DOCKER_IMAGE = 'louay1732001/petclinic'
-        KUBECONFIG = '/var/lib/jenkins/.kube/config'
+    }
+
+    options {
+        timeout(time: 30, unit: 'MINUTES')
     }
 
     stages {
@@ -31,43 +34,38 @@ pipeline {
 
         stage('Push to Docker Hub') {
             steps {
-                sh """
-                    echo \$DOCKER_HUB_CREDENTIALS_PSW | docker login -u \$DOCKER_HUB_CREDENTIALS_USR --password-stdin
-                    docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
-                    docker push ${DOCKER_IMAGE}:latest
-                    docker logout
-                """
-            }
-        }
-
-        stage('Prepare Minikube') {
-            steps {
-                sh """
-                    echo "=== Checking Minikube Status ==="
-                    minikube status || minikube start --driver=docker
-
-                    echo "=== Pre-pulling Docker Image in Minikube ==="
-                    minikube ssh "docker pull ${DOCKER_IMAGE}:latest"
-                """
+                timeout(time: 10, unit: 'MINUTES') {
+                    sh """
+                        echo \$DOCKER_HUB_CREDENTIALS_PSW | docker login -u \$DOCKER_HUB_CREDENTIALS_USR --password-stdin
+                        docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
+                        docker push ${DOCKER_IMAGE}:latest
+                        docker logout
+                    """
+                }
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
                 sh '''
+                    echo "=== Deleting old deployment ==="
+                    kubectl delete deployment springpetclinic --ignore-not-found=true
+                    kubectl delete service springpetclinic --ignore-not-found=true
+
                     echo "=== Deploying to Kubernetes ==="
                     kubectl apply -f k8s/deployment.yaml
                     kubectl apply -f k8s/service.yaml
 
                     echo "=== Waiting for Rollout ==="
-                    kubectl rollout status deployment/springpetclinic --timeout=5m
+                    kubectl rollout status deployment/springpetclinic --timeout=10m
 
                     echo "=== Deployment Info ==="
                     kubectl get pods -l app=springpetclinic
                     kubectl get svc springpetclinic
 
-                    echo "=== Service URL ==="
-                    minikube service springpetclinic --url
+                    echo "=== Getting Minikube IP ==="
+                    MINIKUBE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[0].address}')
+                    echo "Application accessible at: http://$MINIKUBE_IP:30080"
                 '''
             }
         }
@@ -76,7 +74,12 @@ pipeline {
     post {
         success {
             echo "✅ Deployment successful!"
-            echo "Access the application: minikube service springpetclinic"
+            sh '''
+                MINIKUBE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[0].address}')
+                echo "================================================"
+                echo "Application URL: http://$MINIKUBE_IP:30080"
+                echo "================================================"
+            '''
         }
         failure {
             echo "❌ Deployment failed!"
@@ -88,12 +91,16 @@ pipeline {
                 <p><strong>Build Number:</strong> ${env.BUILD_NUMBER}</p>
                 <p><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
                 <p><strong>Console Output:</strong> <a href="${env.BUILD_URL}console">${env.BUILD_URL}console</a></p>
-                <br>
-                <p>Please check the console output for details.</p>
                 """,
                 to: 'louaychayeb00@gmail.com',
                 mimeType: 'text/html'
             )
+        }
+        always {
+            sh '''
+                echo "=== Cleaning up old Docker images ==="
+                docker image prune -f
+            '''
         }
     }
 }
